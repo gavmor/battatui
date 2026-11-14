@@ -1,0 +1,9 @@
+[package]
+name = "batatui"
+version = "0.1.0"
+edition = "2021"
+description = "A terminal battery monitor"
+
+[dependencies]
+crossterm = "0.29"
+ratatui = "0.29"
