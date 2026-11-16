@@ -1,38 +1,77 @@
 name: Release
 
+# Every push to main that passes checks is built and released as the next
+# patch version (v0.1.N, N = previous patch + 1).
+
 on:
   push:
-    tags: ["v[0-9]+.*"]
+    branches: [main]
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  create-release:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: taiki-e/create-gh-release-action@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: next
+        run: |
+          last=$(git tag -l 'v0.1.*' --sort=-v:refname | head -n1)
+          if [ -z "$last" ]; then
+            tag=v0.1.0
+          else
+            tag="v0.1.$(( ${last##*.} + 1 ))"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Create release (and tag) at this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.next.outputs.tag }}
+        run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
 
   upload-assets:
-    needs: create-release
+    needs: release
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-    runs-on: ${{ matrix.os }}
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Stamp release version into Cargo.toml (not committed)
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: sed -i "0,/^version = .*/s//version = \"${TAG#v}\"/" Cargo.toml
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: batatui
           target: ${{ matrix.target }}
+          ref: refs/tags/${{ needs.release.outputs.tag }}
           archive: $bin-$tag-$target
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}

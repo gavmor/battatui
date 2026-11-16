@@ -1,8 +1,8 @@
 name: CI
 
+# Pull requests only; pushes to main run the same checks inside release.yml.
+
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions:
