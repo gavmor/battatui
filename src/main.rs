@@ -4,9 +4,13 @@ mod battery;
 mod history;
 mod ui;
 
-use std::{io, path::Path, time::{Duration, Instant}};
 use battery::{find_battery, Battery};
 use history::History;
+use std::{
+    io,
+    path::Path,
+    time::{Duration, Instant},
+};
 use ui::draw;
 
 use crossterm::{
@@ -49,10 +53,17 @@ fn run() -> io::Result<()> {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
-                        KeyCode::Char('q') | KeyCode::Char('c') if key.code == KeyCode::Char('q') || key.modifiers.contains(KeyModifiers::CONTROL) => break,
+                        KeyCode::Char('q') | KeyCode::Char('c')
+                            if key.code == KeyCode::Char('q')
+                                || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            break
+                        }
                         KeyCode::Char('r') => {
                             history = History::default();
-                            if let Ok(Some(b)) = &battery { history.record(b, Instant::now()); }
+                            if let Ok(Some(b)) = &battery {
+                                history.record(b, Instant::now());
+                            }
                         }
                         _ => {}
                     }
@@ -100,4 +111,3 @@ mod tests {
         assert!(history.chart_points(10).is_empty());
     }
 }
-
