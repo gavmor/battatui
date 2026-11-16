@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 mod battery;
 mod history;
 mod ui;
